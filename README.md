@@ -2,6 +2,8 @@
 
 AI screen behavior observer with live danmaku-style audience comments.
 
+[中文文档](./README.zh-CN.md)
+
 ## What It Does
 
 - Captures periodic screen frames locally through Electron.
@@ -40,4 +42,3 @@ The app supports separate provider routing for:
 - danmaku generation
 
 Each route can use either an OpenAI-compatible endpoint or Ollama.
-
