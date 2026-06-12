@@ -1,7 +1,31 @@
-import { PERSONA_LABELS } from "../../shared/defaults";
-import type { PersonaId } from "../../shared/types";
+import { PERSONA_LABELS_BY_LANGUAGE } from "../../shared/defaults";
+import type { AppLanguage, PersonaId } from "../../shared/types";
 
-export function visionPrompt(): string {
+export function visionPrompt(language: AppLanguage): string {
+  if (language === "en-US") {
+    return `
+You are a desktop behavior observer. Your job is to objectively summarize what the user is doing from a time-ordered screen contact sheet.
+
+Return JSON only. Do not use Markdown or explanations. Required fields:
+{
+  "activityLabel": "one of focused_work | research | communication | video | social | meeting | idle | unknown, or a short English label",
+  "appName": "foreground application name",
+  "windowTitle": "window title, empty string if unknown",
+  "summary": "one objective English sentence",
+  "confidence": 0 to 1,
+  "possibleIntent": "one English inference, or unknown if unclear",
+  "taskRelation": "on_task | off_task | break | unrelated | no_task | unknown",
+  "isSensitive": false
+}
+
+Rules:
+- Describe behavior facts only. Do not mock, judge, or generate danmaku comments.
+- If today's task is empty, return no_task or unknown for taskRelation.
+- If the screen looks like passwords, banking, private chats, health, or identity information, set isSensitive to true and write a privacy-preserving summary.
+- If unsure, use activityLabel unknown and lower confidence.
+`.trim();
+  }
+
   return `
 你是一个桌面行为观察器。你的任务是从屏幕连续抽帧拼图中，客观总结用户正在做什么。
 
@@ -25,9 +49,26 @@ export function visionPrompt(): string {
 `.trim();
 }
 
-export function danmakuPrompt(persona: PersonaId, maxMessages: number): string {
-  const label = PERSONA_LABELS[persona];
+export function danmakuPrompt(persona: PersonaId, maxMessages: number, language: AppLanguage): string {
+  const label = PERSONA_LABELS_BY_LANGUAGE[language][persona];
   const limit = Math.min(12, Math.max(1, Math.round(maxMessages)));
+  if (language === "en-US") {
+    return `
+You are a desktop livestream danmaku generator. Overall tone: "${label}". The input is a behavior timeline brief.
+Generate at most ${limit} English danmaku lines. Quality first; if it does not feel natural, output fewer. Each line should be 5-18 words.
+Output format: one plain-text danmaku line per line. No JSON, no numbering, no speaker/reason, no explanation.
+The app receives lines as a stream and pushes each complete line into the overlay.
+You must follow the "room director instructions" first: they decide whether this round should tease, riff, chat casually, or stay sparse.
+
+Audience pool: office worker, passerby viewer, fellow procrastinator, technical viewer, lifestyle chatter, riffing sidekick, gentle co-pilot, sarcastic friend, future self.
+Each line should feel like a different viewer drifting by, but do not write identity labels.
+Mix content types: behavior reaction, callback to recent chat, daily-life chatter, light teasing, co-working encouragement, live-room hype, topic shift.
+Do not comment on the same screen detail repeatedly. If little changes on screen, prefer casual chat or output fewer lines.
+Avoid repeating recent danmaku. Do not use backend or machine-flavored terms like idle, confidence, task relation, task not set, mouse hovering, not enough information, next frame, AI stuck.
+Do not attack personality, intelligence, appearance, identity, health, or reveal private details.
+`.trim();
+  }
+
   return `
 你是桌面直播间弹幕生成器，基调：“${label}”。输入是一段行为轨迹简报。
 生成最多 ${limit} 条中文弹幕储备，质量优先；不够自然就少给，12-36 字/条。

@@ -22,24 +22,25 @@ export interface DanmakuProvider {
 export type AiDebugSink = (event: Omit<AiDebugEvent, "id" | "at">) => void;
 
 export function getConfigIssue(settings: AppSettings): string | null {
+  const en = settings.language === "en-US";
   if (settings.visionProviderMode === "openai" || settings.textProviderMode === "openai") {
-    if (!settings.openAiBaseUrl.trim()) return "请填写 OpenAI-compatible Base URL";
-    if (!settings.openAiApiKey.trim()) return "请填写 OpenAI-compatible API Key";
+    if (!settings.openAiBaseUrl.trim()) return en ? "Please fill in OpenAI-compatible Base URL" : "请填写 OpenAI-compatible Base URL";
+    if (!settings.openAiApiKey.trim()) return en ? "Please fill in OpenAI-compatible API Key" : "请填写 OpenAI-compatible API Key";
   }
   if (settings.visionProviderMode === "ollama" || settings.textProviderMode === "ollama") {
-    if (!settings.ollamaBaseUrl.trim()) return "请填写 Ollama 地址";
+    if (!settings.ollamaBaseUrl.trim()) return en ? "Please fill in Ollama URL" : "请填写 Ollama 地址";
   }
   if (settings.visionProviderMode === "openai" && !settings.openAiVisionModel.trim()) {
-    return "请填写 OpenAI-compatible 视觉模型名";
+    return en ? "Please fill in OpenAI-compatible vision model" : "请填写 OpenAI-compatible 视觉模型名";
   }
   if (settings.visionProviderMode === "ollama" && !settings.ollamaVisionModel.trim()) {
-    return "请填写 Ollama 视觉模型名";
+    return en ? "Please fill in Ollama vision model" : "请填写 Ollama 视觉模型名";
   }
   if (settings.textProviderMode === "openai" && !settings.openAiTextModel.trim()) {
-    return "请填写 OpenAI-compatible 弹幕文本模型名";
+    return en ? "Please fill in OpenAI-compatible danmaku text model" : "请填写 OpenAI-compatible 弹幕文本模型名";
   }
   if (settings.textProviderMode === "ollama" && !settings.ollamaTextModel.trim()) {
-    return "请填写 Ollama 弹幕文本模型名";
+    return en ? "Please fill in Ollama danmaku text model" : "请填写 Ollama 弹幕文本模型名";
   }
   return null;
 }
@@ -64,7 +65,7 @@ class OpenAiCompatibleProvider implements VisionProvider, DanmakuProvider {
 
   async analyze(input: VisionInput): Promise<ObservationDraft> {
     const content = await this.chat("vision", this.settings.openAiVisionModel, [
-      { role: "system", content: visionPrompt() },
+      { role: "system", content: visionPrompt(input.language) },
       {
         role: "user",
         content: [
@@ -91,7 +92,7 @@ class OpenAiCompatibleProvider implements VisionProvider, DanmakuProvider {
 
   async generateDanmaku(context: DanmakuContext, onCandidate?: DanmakuCandidateSink): Promise<DanmakuCandidate[]> {
     return this.streamDanmaku(this.settings.openAiTextModel, [
-      { role: "system", content: danmakuPrompt(context.persona, context.maxMessages) },
+      { role: "system", content: danmakuPrompt(context.persona, context.maxMessages, context.language) },
       { role: "user", content: buildDanmakuBrief(context) },
     ], onCandidate);
   }
@@ -244,7 +245,7 @@ class OllamaProvider implements VisionProvider, DanmakuProvider {
 
   async analyze(input: VisionInput): Promise<ObservationDraft> {
     const content = await this.chat("vision", this.settings.ollamaVisionModel, [
-      { role: "system", content: visionPrompt() },
+      { role: "system", content: visionPrompt(input.language) },
       {
         role: "user",
         content: buildVisionUserText(input),
@@ -260,7 +261,7 @@ class OllamaProvider implements VisionProvider, DanmakuProvider {
 
   async generateDanmaku(context: DanmakuContext, onCandidate?: DanmakuCandidateSink): Promise<DanmakuCandidate[]> {
     return this.streamDanmaku(this.settings.ollamaTextModel, [
-      { role: "system", content: danmakuPrompt(context.persona, context.maxMessages) },
+      { role: "system", content: danmakuPrompt(context.persona, context.maxMessages, context.language) },
       { role: "user", content: buildDanmakuBrief(context) },
     ], onCandidate);
   }
@@ -691,6 +692,17 @@ export function normalizeBaseUrlForProvider(mode: ProviderMode, url: string): st
 }
 
 function buildVisionUserText(input: VisionInput): string {
+  if (input.language === "en-US") {
+    return [
+      `This is a time-ordered screen contact sheet with ${input.frameCount} frame(s), arranged left-to-right and top-to-bottom.`,
+      `Foreground app: ${input.activeWindow.appName || "Unknown"}`,
+      `Window title: ${input.activeWindow.windowTitle || "Unknown"}`,
+      `Today's task: ${input.todayTask || "not provided"}`,
+      "The white cursor with a dark outline marks the current mouse position.",
+      "Objectively summarize the user's current behavior in English. Do not judge the person and do not generate danmaku.",
+    ].join("\n");
+  }
+
   return [
     `这是一张按时间从左到右、从上到下排列的屏幕抽帧拼图，共 ${input.frameCount} 帧。`,
     `当前前台应用：${input.activeWindow.appName || "Unknown"}`,
@@ -702,9 +714,13 @@ function buildVisionUserText(input: VisionInput): string {
 }
 
 function buildDanmakuBrief(context: DanmakuContext): string {
+  if (context.language === "en-US") {
+    return buildEnglishDanmakuBrief(context);
+  }
+
   const observation = context.observation;
   const current = context.currentSegment;
-  const relation = relationText(observation.taskRelation);
+  const relation = relationText(observation.taskRelation, context.language);
   const confidence = Math.round(observation.confidence * 100);
   const taskLine = context.todayTask.trim()
     ? `今日任务：${compact(context.todayTask, 60)}`
@@ -742,6 +758,48 @@ function buildDanmakuBrief(context: DanmakuContext): string {
   ].filter(Boolean).join("\n");
 }
 
+function buildEnglishDanmakuBrief(context: DanmakuContext): string {
+  const observation = context.observation;
+  const current = context.currentSegment;
+  const relation = relationText(observation.taskRelation, context.language);
+  const confidence = Math.round(observation.confidence * 100);
+  const taskLine = context.todayTask.trim()
+    ? `Today's task: ${compact(context.todayTask, 60)}`
+    : "Today's task: not set";
+  const currentLine = [
+    `Current: ${compact(observation.summary, 100)}`,
+    `App: ${compact(observation.appName, 24)}`,
+    `Activity: ${observation.activityLabel}`,
+    `Task relation: ${relation}`,
+    `Confidence: ${confidence}%`,
+  ].join("; ");
+  const segmentLine = current
+    ? `Current segment: ${compact(current.appName, 24)} / ${current.activityLabel}, ${current.observationCount} round(s), ${compact(current.summary, 110)}`
+    : "Current segment: none";
+  const timeline = buildTimeline(context);
+  const rollup = context.rollups
+    .map((item) => compact(item.summary, item.scope === "recent_30m" ? 100 : 80))
+    .filter(Boolean)
+    .join(" / ");
+  const recentDanmaku = context.recentMessages
+    .slice(0, 12)
+    .map((message) => compact(message.text, 44))
+    .filter(Boolean)
+    .join(" | ");
+
+  return [
+    "Target danmaku language: English.",
+    taskLine,
+    buildDirectorBrief(context),
+    currentLine,
+    segmentLine,
+    `Behavior timeline: ${timeline || "no earlier timeline yet"}`,
+    rollup ? `Rollup: ${rollup}` : "",
+    recentDanmaku ? `Recent danmaku to avoid repeating: ${recentDanmaku}` : "Recent danmaku: none",
+    `Produce at most ${context.maxMessages} danmaku lines; quality first, do not force filler.`,
+  ].filter(Boolean).join("\n");
+}
+
 function buildDirectorBrief(context: DanmakuContext): string {
   const observation = context.observation;
   const current = context.currentSegment;
@@ -754,6 +812,7 @@ function buildDirectorBrief(context: DanmakuContext): string {
   const noTask = !context.todayTask.trim();
 
   const mode = chooseRoomMode({
+    language: context.language,
     stableIdle,
     justChanged,
     lowConfidence,
@@ -761,17 +820,30 @@ function buildDirectorBrief(context: DanmakuContext): string {
     noTask,
   });
   const voices = chooseAudienceVoices({
+    language: context.language,
     stableIdle,
     justChanged,
     relation,
     noTask,
   });
-  const cooldownTopics = buildCooldownTopics(context.recentMessages);
+  const cooldownTopics = buildCooldownTopics(context.recentMessages, context.language);
   const forbiddenTerms = buildForbiddenTerms({
+    language: context.language,
     stableIdle,
     lowConfidence,
     noTask,
   });
+
+  if (context.language === "en-US") {
+    return [
+      "Room director instructions:",
+      `- Round vibe: ${mode}`,
+      `- Audience mix: ${voices}`,
+      cooldownTopics ? `- Cool down recent overused topics: ${cooldownTopics}` : "",
+      `- Do not directly say these terms: ${forbiddenTerms.join(", ")}`,
+      "- Each line should feel like a different viewer drifting by; riff if possible, otherwise switch to everyday chatter; do not rewrite the screen summary as danmaku.",
+    ].filter(Boolean).join("\n");
+  }
 
   return [
     "直播间导演指令：",
@@ -784,18 +856,39 @@ function buildDirectorBrief(context: DanmakuContext): string {
 }
 
 function chooseRoomMode({
+  language,
   stableIdle,
   justChanged,
   lowConfidence,
   relation,
   noTask,
 }: {
+  language: string;
   stableIdle: boolean;
   justChanged: boolean;
   lowConfidence: boolean;
   relation: string;
   noTask: boolean;
 }): string {
+  if (language === "en-US") {
+    if (stableIdle || lowConfidence) {
+      return "Little changed on screen; about 20% behavior comments and 80% casual chat/riffs/passersby energy. Do not fixate on the cursor or window.";
+    }
+    if (justChanged) {
+      return "A switch just happened; about 60% behavior reaction and 40% casual chat. Make it feel like viewers noticed the plot changed.";
+    }
+    if (relation === "off_task") {
+      return "Likely off task; about 50% light teasing and 50% companionable chat. Tease the behavior only, not the person.";
+    }
+    if (relation === "on_task") {
+      return "On task; about 50% cheering/co-working, 20% light teasing, 30% daily-life chat.";
+    }
+    if (noTask) {
+      return "No clear task; do not harp on tasks. About 30% behavior comments and 70% casual live-room presence.";
+    }
+    return "Normal watch-along; about 40% behavior comments and 60% casual chat/riffs.";
+  }
+
   if (stableIdle || lowConfidence) {
     return "画面变化少，行为评论约2成，闲聊/接梗/路过感约8成；不要硬盯鼠标或窗口。";
   }
@@ -815,16 +908,34 @@ function chooseRoomMode({
 }
 
 function chooseAudienceVoices({
+  language,
   stableIdle,
   justChanged,
   relation,
   noTask,
 }: {
+  language: string;
   stableIdle: boolean;
   justChanged: boolean;
   relation: string;
   noTask: boolean;
 }): string {
+  if (language === "en-US") {
+    if (stableIdle) {
+      return "passerby viewers, fellow procrastinators, lifestyle chatters, riffing sidekicks";
+    }
+    if (justChanged || relation === "off_task") {
+      return "office workers, passerby viewers, sarcastic friends, fellow procrastinators, riffing sidekicks";
+    }
+    if (relation === "on_task") {
+      return "co-working viewers, technical viewers, future self, gentle supervisors, cheering viewers";
+    }
+    if (noTask) {
+      return "passerby viewers, lifestyle chatters, light teasers, quiet companions";
+    }
+    return "office workers, lifestyle chatters, passerby viewers, riffing sidekicks, gentle supervisors";
+  }
+
   if (stableIdle) {
     return "路过观众、同样摸鱼的人、生活流观众、捧哏观众";
   }
@@ -841,14 +952,35 @@ function chooseAudienceVoices({
 }
 
 function buildForbiddenTerms({
+  language,
   stableIdle,
   lowConfidence,
   noTask,
 }: {
+  language: string;
   stableIdle: boolean;
   lowConfidence: boolean;
   noTask: boolean;
 }): string[] {
+  if (language === "en-US") {
+    const terms = [
+      "idle",
+      "confidence",
+      "task relation",
+      "observation record",
+      "not enough information",
+      "next frame",
+      "AI stuck",
+    ];
+    if (stableIdle || lowConfidence) {
+      terms.push("mouse hovering", "cursor hovering", "nothing changed on screen");
+    }
+    if (noTask) {
+      terms.push("task not set", "no task");
+    }
+    return Array.from(new Set(terms));
+  }
+
   const terms = [
     "idle",
     "置信度",
@@ -867,16 +999,26 @@ function buildForbiddenTerms({
   return Array.from(new Set(terms));
 }
 
-function buildCooldownTopics(recentMessages: Array<{ text: string }>): string {
-  const topicPatterns: Array<[string, RegExp]> = [
-    ["任务", /任务|待办|目标/u],
-    ["鼠标/光标", /鼠标|光标/u],
-    ["发呆/空白", /发呆|空白|挂机|长草/u],
-    ["咖啡/饮料", /咖啡|奶茶|水|酸奶/u],
-    ["晚饭/外卖", /晚饭|夜宵|外卖|吃/u],
-    ["老板/工作压力", /老板|日报|上班|下班/u],
-    ["代码/工具", /代码|Codex|浏览器|窗口/u],
-  ];
+function buildCooldownTopics(recentMessages: Array<{ text: string }>, language: string): string {
+  const topicPatterns: Array<[string, RegExp]> = language === "en-US"
+    ? [
+      ["task", /task|todo|goal/i],
+      ["mouse/cursor", /mouse|cursor/i],
+      ["staring/empty screen", /stare|blank|afk|idle|nothing/i],
+      ["coffee/drinks", /coffee|tea|water|drink|soda/i],
+      ["dinner/food", /dinner|lunch|snack|takeout|food/i],
+      ["work pressure", /boss|report|work|deadline/i],
+      ["code/tools", /code|Codex|browser|window|tool/i],
+    ]
+    : [
+      ["任务", /任务|待办|目标/u],
+      ["鼠标/光标", /鼠标|光标/u],
+      ["发呆/空白", /发呆|空白|挂机|长草/u],
+      ["咖啡/饮料", /咖啡|奶茶|水|酸奶/u],
+      ["晚饭/外卖", /晚饭|夜宵|外卖|吃/u],
+      ["老板/工作压力", /老板|日报|上班|下班/u],
+      ["代码/工具", /代码|Codex|浏览器|窗口/u],
+    ];
   const counts = new Map<string, number>();
   for (const message of recentMessages.slice(0, 12)) {
     for (const [topic, pattern] of topicPatterns) {
@@ -902,13 +1044,20 @@ function buildTimeline(context: DanmakuContext): string {
     .reverse()
     .map((segment) => {
       const count = segment.observationCount > 1 ? `x${segment.observationCount}` : "";
-      return `${compact(segment.appName, 16)}:${segment.activityLabel}${count}(${relationText(segment.taskRelation)})`;
+      return `${compact(segment.appName, 16)}:${segment.activityLabel}${count}(${relationText(segment.taskRelation, context.language)})`;
     })
     .join(" -> ");
 }
 
-function relationText(relation: string): string {
-  const labels: Record<string, string> = {
+function relationText(relation: string, language: string): string {
+  const labels: Record<string, string> = language === "en-US" ? {
+    on_task: "on task",
+    off_task: "off task",
+    break: "break",
+    unrelated: "unrelated",
+    no_task: "no task",
+    unknown: "unknown",
+  } : {
     on_task: "贴近任务",
     off_task: "偏离任务",
     break: "休息",

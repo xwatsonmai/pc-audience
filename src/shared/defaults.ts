@@ -1,4 +1,4 @@
-import type { AppSettings, PersonaId } from "./types";
+import type { AppLanguage, AppSettings, PersonaId } from "./types";
 
 export const PERSONA_LABELS: Record<PersonaId, string> = {
   sharp_supervisor: "轻毒舌监督员",
@@ -14,7 +14,28 @@ export const PERSONA_DESCRIPTIONS: Record<PersonaId, string> = {
   future_self: "从明天的视角提醒现在。",
 };
 
+export const PERSONA_LABELS_BY_LANGUAGE: Record<AppLanguage, Record<PersonaId, string>> = {
+  "zh-CN": PERSONA_LABELS,
+  "en-US": {
+    sharp_supervisor: "Wry Supervisor",
+    gentle_coach: "Gentle Coach",
+    sarcastic_friend: "Sarcastic Friend",
+    future_self: "Future Self",
+  },
+};
+
+export const PERSONA_DESCRIPTIONS_BY_LANGUAGE: Record<AppLanguage, Record<PersonaId, string>> = {
+  "zh-CN": PERSONA_DESCRIPTIONS,
+  "en-US": {
+    sharp_supervisor: "Teases drifting behavior without attacking the person.",
+    gentle_coach: "Friendly reminders to come back.",
+    sarcastic_friend: "Dry and playful, but still fair.",
+    future_self: "Reminds the present from tomorrow's point of view.",
+  },
+};
+
 export const DEFAULT_SETTINGS: AppSettings = {
+  language: "zh-CN",
   visionProviderMode: "openai",
   textProviderMode: "openai",
   openAiBaseUrl: "https://api.openai.com/v1",
@@ -29,6 +50,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   observeIntervalMs: 10_000,
   maxDanmakuPerRound: 6,
   danmakuSpeed: 0.65,
+  showDebugPanel: false,
   hideOverlayDuringCapture: true,
   sensitiveApps: [
     "1Password",
@@ -60,10 +82,12 @@ export function mergeSettings(
     typeof patch.danmakuSpeed === "number"
       ? patch.danmakuSpeed
       : current.danmakuSpeed;
+  const requestedLanguage = isAppLanguage(patch.language) ? patch.language : current.language;
 
   return {
     ...current,
     ...patch,
+    language: requestedLanguage,
     sensitiveApps: Array.isArray(patch.sensitiveApps)
       ? patch.sensitiveApps
           .map((item) => item.trim())
@@ -73,6 +97,10 @@ export function mergeSettings(
     maxDanmakuPerRound: clamp(Math.round(requestedMaxDanmaku), 1, 12),
     danmakuSpeed: clamp(Number(requestedDanmakuSpeed.toFixed(2)), 0.4, 1.3),
   };
+}
+
+function isAppLanguage(value: unknown): value is AppLanguage {
+  return value === "zh-CN" || value === "en-US";
 }
 
 function clamp(value: number, min: number, max: number): number {

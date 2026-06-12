@@ -15,6 +15,7 @@ import type {
 type Row = Record<string, unknown>;
 
 const APP_SETTING_KEYS = new Set<keyof AppSettings>([
+  "language",
   "visionProviderMode",
   "textProviderMode",
   "openAiBaseUrl",
@@ -29,6 +30,7 @@ const APP_SETTING_KEYS = new Set<keyof AppSettings>([
   "observeIntervalMs",
   "maxDanmakuPerRound",
   "danmakuSpeed",
+  "showDebugPanel",
   "hideOverlayDuringCapture",
   "sensitiveApps",
 ]);

@@ -11,7 +11,11 @@ describe("danmaku safety", () => {
     expect(isSafeDanmakuText("连续 idle 24 轮了")).toBe(false);
     expect(isSafeDanmakuText("任务未设置，难怪在发呆")).toBe(false);
     expect(isSafeDanmakuText("鼠标悬停在空白区域")).toBe(false);
+    expect(isSafeDanmakuText("Confidence is too low this round")).toBe(false);
+    expect(isSafeDanmakuText("Task relation says off task")).toBe(false);
+    expect(isSafeDanmakuText("Mouse hovering in the blank area again")).toBe(false);
     expect(isSafeDanmakuText("先喝口水，剧情慢慢来")).toBe(true);
+    expect(isSafeDanmakuText("Grab some water, this plot can simmer")).toBe(true);
   });
 
   it("dedupes recent messages and limits output", () => {

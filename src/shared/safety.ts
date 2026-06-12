@@ -23,6 +23,15 @@ const BLOCKED_PATTERNS = [
   /信息不够/u,
   /下一帧/u,
   /AI\s*卡壳/iu,
+  /\bconfidence\b/iu,
+  /\btask relation\b/iu,
+  /\bobservation record\b/iu,
+  /\bnot enough information\b/iu,
+  /\bnext frame\b/iu,
+  /\bAI\s*stuck\b/iu,
+  /\bmouse hovering\b/iu,
+  /\bcursor hovering\b/iu,
+  /\btask not set\b/iu,
 ];
 
 export function isSafeDanmakuText(text: string): boolean {

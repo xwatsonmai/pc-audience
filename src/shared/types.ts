@@ -1,5 +1,7 @@
 export type ProviderMode = "openai" | "ollama";
 
+export type AppLanguage = "zh-CN" | "en-US";
+
 export type PersonaId =
   | "sharp_supervisor"
   | "gentle_coach"
@@ -24,6 +26,7 @@ export type EngineState =
   | "error";
 
 export interface AppSettings {
+  language: AppLanguage;
   visionProviderMode: ProviderMode;
   textProviderMode: ProviderMode;
   openAiBaseUrl: string;
@@ -38,6 +41,7 @@ export interface AppSettings {
   observeIntervalMs: number;
   maxDanmakuPerRound: number;
   danmakuSpeed: number;
+  showDebugPanel: boolean;
   hideOverlayDuringCapture: boolean;
   sensitiveApps: string[];
 }
@@ -57,6 +61,7 @@ export interface VisionInput {
   capturedAt: string;
   activeWindow: ActiveWindowInfo;
   todayTask: string;
+  language: AppLanguage;
 }
 
 export interface ObservationDraft {
@@ -164,6 +169,7 @@ export interface DanmakuContext {
   recentSegments: BehaviorSegment[];
   rollups: MemoryRollup[];
   todayTask: string;
+  language: AppLanguage;
   persona: PersonaId;
   recentMessages: DanmakuMessage[];
   maxMessages: number;

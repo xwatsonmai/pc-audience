@@ -117,6 +117,7 @@ export class ObserverService {
       capturedAt: now,
       activeWindow: active,
       todayTask: this.options.getTodayTask(),
+      language: settings.language,
     });
 
     if (draft.isSensitive) {
@@ -141,6 +142,7 @@ export class ObserverService {
         recentSegments: context.recentSegments,
         rollups,
         todayTask: this.options.getTodayTask(),
+        language: settings.language,
         persona: settings.persona,
         recentMessages: context.recentDanmaku,
         maxMessages: computeDanmakuGenerationSize(settings.maxDanmakuPerRound),

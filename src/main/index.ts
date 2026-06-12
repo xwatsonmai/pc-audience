@@ -24,6 +24,7 @@ let database: DatabaseService;
 let memoryService: MemoryService;
 let observerService: ObserverService;
 let overlayActiveCount = 0;
+let overlayHasPlayed = false;
 let diagnosticId = 0;
 let aiDebugId = 0;
 const diagnostics: DiagnosticEvent[] = [];
@@ -58,7 +59,6 @@ void app.whenReady().then(async () => {
 
   registerIpc();
   mainWindow = createMainWindow();
-  overlayWindow = createOverlayWindow();
 
   observerService = new ObserverService(memoryService, danmakuService, {
     getSettings: () => database.getSettings(),
@@ -83,9 +83,8 @@ void app.whenReady().then(async () => {
   observerService.start();
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
       mainWindow = createMainWindow();
-      overlayWindow = createOverlayWindow();
     }
   });
 });
@@ -135,17 +134,31 @@ function registerIpc(): void {
   });
   ipcMain.on("overlay:activity", (_event, activeCount: number) => {
     overlayActiveCount = Math.max(0, Math.min(128, Math.round(Number(activeCount) || 0)));
+    if (overlayActiveCount > 0) {
+      overlayHasPlayed = true;
+    }
+    if (
+      overlayActiveCount === 0 &&
+      overlayHasPlayed &&
+      overlayWindow &&
+      !overlayWindow.isDestroyed()
+    ) {
+      const finishedWindow = overlayWindow;
+      overlayWindow = null;
+      overlayHasPlayed = false;
+      finishedWindow.close();
+    }
   });
 }
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    width: 1180,
-    height: 780,
-    minWidth: 980,
+    width: 1380,
+    height: 820,
+    minWidth: 1080,
     minHeight: 680,
     title: "PC Audience",
-    backgroundColor: "#181713",
+    backgroundColor: "#f8fcff",
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -155,6 +168,11 @@ function createMainWindow(): BrowserWindow {
   window.on("page-title-updated", (event) => {
     event.preventDefault();
     window.setTitle("PC Audience");
+  });
+  window.on("closed", () => {
+    if (mainWindow === window) {
+      mainWindow = null;
+    }
   });
   attachWindowDiagnostics(window, "main");
   void loadRenderer(window, "main");
@@ -187,7 +205,13 @@ function createOverlayWindow(): BrowserWindow {
   window.setAlwaysOnTop(true, "floating");
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   window.setIgnoreMouseEvents(true, { forward: true });
-  window.setContentProtection(true);
+  window.on("closed", () => {
+    if (overlayWindow === window) {
+      overlayWindow = null;
+      overlayActiveCount = 0;
+      overlayHasPlayed = false;
+    }
+  });
   attachWindowDiagnostics(window, "overlay");
   void loadRenderer(window, "overlay");
   return window;
@@ -246,12 +270,32 @@ function broadcastDanmaku(messages: DanmakuMessage[]): void {
     return;
   }
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    moveOverlayToPrimaryDisplay(overlayWindow);
-    if (!overlayWindow.isVisible()) {
-      overlayWindow.showInactive();
-      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    sendDanmakuToOverlay(overlayWindow, messages, false);
+    return;
+  }
+  overlayWindow = createOverlayWindow();
+  sendDanmakuToOverlay(overlayWindow, messages, true);
+}
+
+function sendDanmakuToOverlay(
+  window: BrowserWindow,
+  messages: DanmakuMessage[],
+  waitForLoad: boolean,
+): void {
+  moveOverlayToPrimaryDisplay(window);
+  if (!window.isVisible()) {
+    window.showInactive();
+    window.setIgnoreMouseEvents(true, { forward: true });
+  }
+  const send = () => {
+    if (!window.isDestroyed()) {
+      window.webContents.send("danmaku:push", messages);
     }
-    overlayWindow.webContents.send("danmaku:push", messages);
+  };
+  if (waitForLoad) {
+    window.webContents.once("did-finish-load", send);
+  } else {
+    send();
   }
 }
 
